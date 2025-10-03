@@ -1,0 +1,216 @@
+:root {
+    font-family:Inter, system-ui, sans-serif;
+    font-size:18px;
+}
+
+body{
+    background:#f7fafc;
+    padding:20px;
+    display:flex;
+    justify-content:left;
+    font-size:18px;
+}
+
+.card{ 
+    margin-top:100px; 
+    max-width:800px; 
+    width:100%; 
+    background:#fff; 
+    border-radius:12px; 
+    padding:20px; 
+    margin-bottom: 50px;
+    box-shadow:0 6px 22px rgba(0,0,0,0.08);
+}
+
+h1{ 
+    margin:0 0 12px; 
+    font-size:20px; 
+}
+
+video{ 
+    width:100%; 
+    border-radius:10px; 
+    background:#000; 
+}
+
+select {
+    padding:10px 10px;
+    border-radius:8px;
+    border:none;
+    background:#2196f3;
+    color: white;
+    cursor:pointer; 
+    transition: background-color 0.3s ease;
+    font-size:18px;
+}
+
+select:hover {
+    background-color:#1976d2;
+}
+
+input[type=text] {
+    padding: 10px;
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.8);
+    margin-top: 10px;
+    font-size:18px;
+}
+
+footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.8);
+    text-align: center;
+    padding: 15px 0px 15px 0px;
+    font-size:16px;
+    z-index: 9999;
+}
+
+logoimg {
+    margin-top: 20px;
+    margin-bottom: 20px;
+    position: fixed;
+    left: 27px;
+    top: 0px;
+    z-index: 9999;
+}
+
+a {
+    text-decoration:none;
+    color:#2196f3;
+    font-size:16px;
+}
+
+a:hover {
+    text-decoration:none;
+    color:#1976d2;
+    font-size:16px;
+}
+
+.controls{ 
+    margin-top:12px; 
+    display:flex; 
+    gap:8px; 
+    flex-wrap:wrap; 
+}
+
+.status{ 
+    margin-top:20px; 
+    color:grey;
+    font-size:18px;
+}
+
+#connectBtn {
+    padding:10px 10px;
+    border-radius:8px;
+    border:none;
+    background:#2196f3;
+    color: white;
+    cursor:pointer; 
+    transition: background-color 0.3s ease;
+    font-size:18px;
+    margin-top: 12px;
+}
+
+#connectBtn:hover {
+    background-color:#1976d2;
+}
+
+#endBtn {
+    padding:10px 10px;
+    border-radius:8px;
+    border:none;
+    background:#c00;
+    color: white;
+    cursor:pointer; 
+    transition: background-color 0.3s ease;
+    font-size:18px;
+    margin-top: 12px;
+}
+
+#endBtn:hover {
+    background-color:#a00;
+}
+
+#clearBtn {
+    padding:10px 10px;
+    border-radius:8px;
+    border:none;
+    background:#c00;
+    color: white;
+    cursor:pointer; 
+    transition: background-color 0.3s ease;
+    font-size:18px;
+    margin-top: 12px;
+}
+
+#clearBtn:hover {
+    background-color:#a00;
+}
+
+#cameraControls button {
+    padding:10px 10px;
+    border-radius:8px;
+    border:none;
+    background:#2196f3;
+    color: white;
+    cursor:pointer; 
+    transition: background-color 0.3s ease;
+    font-size:18px;
+}
+
+#cameraControls button:hover {
+    background-color:#1976d2;
+}
+
+#copyBtn {
+    padding:10px 10px;
+    border-radius:8px;
+    border:none;
+    background:#2196f3;
+    color: white;
+    cursor:pointer; 
+    transition: background-color 0.3s ease;
+    font-size:18px;
+    margin-left:10px;
+}
+
+#copyBtn:hover {
+    background-color:#1976d2;
+}
+
+#copyLinkBtn{
+    padding:10px 10px;
+    border-radius:8px;
+    border:none;
+    background:#2196f3;
+    color: white;
+    cursor:pointer; 
+    transition: background-color 0.3s ease;
+    font-size:18px;
+    margin-left:10px;
+}
+
+#copyLinkBtn:hover {
+    background-color:#1976d2;
+}
+
+#menuBtn {
+    padding:10px 10px;
+    border-radius:8px;
+    border:none;
+    background:#2196f3;
+    color: white;
+    cursor:pointer; 
+    transition: background-color 0.3s ease;
+    font-size:18px;
+}
+
+#menuBtn:hover {
+    background-color:#1976d2;
+}

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=0.6" />
+<title>WebRTC Camera Stream - Receiver</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<logoimg><a href="index.html"><img src="img/logo.png" alt="WebRTC Camera Stream" width="300"></a></logoimg>
+<div class="card">
+  <h1>WebRTC Camera Stream - Receiver</h1>
+  <video id="remote" autoplay playsinline controls></video>
+  <input type="text" id="streamId" placeholder="Enter Stream ID">
+  <div><button id="connectBtn">Connect WebRTC Camera Stream</button></div>
+  <div><button id="endBtn">End WebRTC Camera Stream</button></div>
+  <div class="status">Status: <span id="st">ready</span></div>
+</div>
+<footer>WebRTC Camera Stream V.1.0 © 2025 by Kevin Tobler - 
+<a href="https://www.kevintobler.ch" target="_blank">www.kevintobler.ch</a></footer>
+<script>
+const SIGNAL_URL='signal.php';
+const remoteVideo=document.getElementById("remote");
+const st=document.getElementById("st");
+
+// Read ID directly from the URL (e.g., receiver.html?id=123456)
+const urlParams = new URLSearchParams(window.location.search);
+const prefilledId = urlParams.get("id");
+if (prefilledId) {
+  document.getElementById("streamId").value = prefilledId;
+}
+
+let pc, candidateInterval;
+
+function setStatus(t){ st.textContent=t; }
+
+async function connect(){
+  const streamId=document.getElementById("streamId").value.trim();
+  if(!streamId){ setStatus("Please enter a Stream ID"); return; }
+
+  if(pc){ pc.close(); pc=null; }
+  if(candidateInterval){ clearInterval(candidateInterval); candidateInterval=null; }
+
+  pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+  pc.ontrack=e=>{ remoteVideo.srcObject=e.streams[0]; setStatus("Receiving video ✔"); };
+  pc.onicecandidate=e=>{
+    if(e.candidate){
+      fetch(SIGNAL_URL+'?role=receiver_candidate&action=add&id='+streamId,{
+        method:'POST',
+        body: JSON.stringify(e.candidate)
+      });
+    }
+  };
+
+  const offerRes=await fetch(SIGNAL_URL+'?role=offer&action=get&id='+streamId);
+  const offer=await offerRes.json();
+  if(!offer||!offer.type){ setStatus("No offer found"); return; }
+
+  await pc.setRemoteDescription(offer);
+  const answer=await pc.createAnswer();
+  await pc.setLocalDescription(answer);
+  await fetch(SIGNAL_URL+'?role=answer&action=set&id='+streamId,{
+    method:'POST',
+    body: JSON.stringify(answer)
+  });
+  setStatus("Answer sent ✔");
+
+  candidateInterval=setInterval(async()=>{
+    const candRes=await fetch(SIGNAL_URL+'?role=sender_candidate&action=get&id='+streamId);
+    const cands=await candRes.json().catch(()=>[]);
+    if(Array.isArray(cands)){
+      for(const c of cands) await pc.addIceCandidate(c).catch(()=>{});
+    }
+  },1500);
+}
+
+document.getElementById("connectBtn").onclick=connect;
+
+document.getElementById("endBtn").onclick=()=>{
+  const streamId=document.getElementById("streamId").value.trim();
+  if(pc){ pc.close(); pc=null; }
+  remoteVideo.srcObject=null;
+  if(candidateInterval){ clearInterval(candidateInterval); candidateInterval=null; }
+  if(streamId){
+    fetch(SIGNAL_URL+'?action=bye&id='+streamId,{method:'POST'});
+  }
+  setStatus("Stream ended – Bye sent");
+};
+</script>
+</body>
+</html>

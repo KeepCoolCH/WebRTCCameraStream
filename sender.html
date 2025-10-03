@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=0.6" />
+<title>WebRTC Camera Stream - Sender</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<logoimg><a href="index.html"><img src="img/logo.png" alt="WebRTC Camera Stream" width="300"></a></logoimg>
+<div class="card">
+  <h1>WebRTC Camera Stream - Sender</h1>
+  <video id="local" autoplay playsinline muted></video>
+  <div class="controls" id="cameraControls"></div>
+  <div>
+    <button id="clearBtn">End WebRTC Camera Stream</button>
+  </div>
+  <div style="margin-top:20px">
+    <label>Stream ID:</label>
+    <strong><span id="streamId"></span></strong>
+    <button id="copyBtn">Copy Stream ID</button>
+    <button id="copyLinkBtn">Copy Link with Stream ID</button>
+    <div class="status">Status: <span id="statText">ready</span></div>
+  </div>
+</div>
+<footer>WebRTC Camera Stream V.1.0 © 2025 by Kevin Tobler - 
+<a href="https://www.kevintobler.ch" target="_blank">www.kevintobler.ch</a></footer>
+<script>
+const SIGNAL_URL = 'signal.php';
+const localVideo = document.getElementById("local");
+const controls = document.getElementById("cameraControls");
+const statText = document.getElementById("statText");
+
+// Generate random stream ID
+function generateStreamId() {
+  return String(Math.floor(Math.random() * 1e6)).padStart(6, "0");
+}
+const streamIdField = document.getElementById("streamId");
+const streamId = generateStreamId();
+streamIdField.textContent = streamId;
+
+let pc, localStream, videoSender, pollingInterval;
+
+function setStatus(t){ statText.textContent=t; }
+
+async function setupStream(stream){
+  localStream = stream;
+  localVideo.srcObject = stream;
+
+  pc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+  stream.getTracks().forEach(track=>{
+    const sender=pc.addTrack(track,stream);
+    if(track.kind==="video") videoSender=sender;
+  });
+
+  pc.onicecandidate = e => {
+    if(e.candidate){
+      fetch(SIGNAL_URL+'?role=sender_candidate&action=add&id='+streamId, {
+        method:'POST',
+        body: JSON.stringify(e.candidate)
+      });
+    }
+  };
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  await fetch(SIGNAL_URL+'?role=offer&action=set&id='+streamId, {
+      method:'POST',
+      body: JSON.stringify(offer)
+  });
+  setStatus("Offer sent, waiting for Answer…");
+
+  if(pollingInterval) clearInterval(pollingInterval);
+  pollingInterval = setInterval(async()=>{
+    try{
+      // check for answer
+      const ansRes = await fetch(SIGNAL_URL+'?role=answer&action=get&id='+streamId);
+      const answer = await ansRes.json().catch(()=>null);
+      if(answer && answer.type && !pc.currentRemoteDescription){
+        await pc.setRemoteDescription(answer);
+        setStatus("Answer received ✔");
+      }
+      // check for receiver candidates
+      const candRes = await fetch(SIGNAL_URL+'?role=receiver_candidate&action=get&id='+streamId);
+      const cands = await candRes.json().catch(()=>[]);
+      if(Array.isArray(cands)){
+        for(const c of cands) await pc.addIceCandidate(c).catch(()=>{});
+      }
+      // check for bye
+      const byeRes = await fetch(SIGNAL_URL+'?action=getBye&id='+streamId);
+      const bye = await byeRes.json().catch(()=>null);
+      if(bye && bye.bye){
+        setStatus("Receiver ended the connection – restarting offer");
+        if(pc){ pc.close(); pc=null; }
+        await fetch(SIGNAL_URL+'?action=clear&id='+streamId,{method:'POST'});
+        setupStream(localStream);
+      }
+    }catch(e){}
+  },1500);
+}
+
+async function startWithFacing(mode){
+  const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:mode},audio:true});
+  await setupStream(stream);
+  buildSwitchUI();
+}
+
+async function startWithDevice(deviceId){
+  const stream=await navigator.mediaDevices.getUserMedia({video:{deviceId:{exact:deviceId}},audio:true});
+  await setupStream(stream);
+  buildDeviceSwitchUI();
+}
+
+async function switchCameraFacing(mode){
+  if(!videoSender)return;
+  const newStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:mode},audio:false});
+  const newTrack=newStream.getVideoTracks()[0];
+  await videoSender.replaceTrack(newTrack);
+  localStream.getVideoTracks().forEach(t=>t.stop());
+  localStream.removeTrack(localStream.getVideoTracks()[0]);
+  localStream.addTrack(newTrack);
+  localVideo.srcObject=localStream;
+  setStatus("Switched camera: "+mode);
+}
+
+async function switchCameraDevice(deviceId){
+  if(!videoSender)return;
+  const newStream=await navigator.mediaDevices.getUserMedia({video:{deviceId:{exact:deviceId}},audio:false});
+  const newTrack=newStream.getVideoTracks()[0];
+  await videoSender.replaceTrack(newTrack);
+  localStream.getVideoTracks().forEach(t=>t.stop());
+  localStream.removeTrack(localStream.getVideoTracks()[0]);
+  localStream.addTrack(newTrack);
+  localVideo.srcObject=localStream;
+  setStatus("Switched camera");
+}
+
+function buildInitialUI(){
+  controls.innerHTML='';
+  navigator.mediaDevices.enumerateDevices().then(devs=>{
+    const cams=devs.filter(d=>d.kind==="videoinput");
+    if(/iPhone|iPad|iPod/.test(navigator.userAgent)){
+      const start=document.createElement("button");
+      start.textContent="Start WebRTC Camera Stream";
+      start.onclick=()=>startWithFacing("user"); // Default: front
+      controls.appendChild(start);
+
+      const f=document.createElement("button"); 
+      f.textContent="Front camera"; 
+      f.onclick=()=>startWithFacing("user");
+      const b=document.createElement("button"); 
+      b.textContent="Back camera"; 
+      b.onclick=()=>startWithFacing("environment");
+      controls.appendChild(f); 
+      controls.appendChild(b);
+    }else{
+      const sel=document.createElement("select");
+      cams.forEach((c,i)=>{ const o=document.createElement("option"); o.value=c.deviceId; o.text=c.label||("Camera "+(i+1)); sel.appendChild(o); });
+      const btn=document.createElement("button"); btn.textContent="Start WebRTC Camera Stream"; btn.onclick=()=>startWithDevice(sel.value);
+      controls.appendChild(btn); controls.appendChild(sel);
+    }
+  });
+}
+
+function buildSwitchUI(){
+  controls.innerHTML='';
+  const f=document.createElement("button"); f.textContent="Front camera"; f.onclick=()=>switchCameraFacing("user");
+  const b=document.createElement("button"); b.textContent="Back camera"; b.onclick=()=>switchCameraFacing("environment");
+  controls.appendChild(f); controls.appendChild(b);
+}
+
+function buildDeviceSwitchUI(){
+  controls.innerHTML='';
+  navigator.mediaDevices.enumerateDevices().then(devs=>{
+    const cams=devs.filter(d=>d.kind==="videoinput");
+    const sel=document.createElement("select");
+    cams.forEach((c,i)=>{ const o=document.createElement("option"); o.value=c.deviceId; o.text=c.label||("Camera "+(i+1)); sel.appendChild(o); });
+    sel.onchange=()=>switchCameraDevice(sel.value);
+    controls.appendChild(sel);
+  });
+}
+
+document.getElementById("clearBtn").onclick=()=>{
+  fetch(SIGNAL_URL+'?action=clear&id='+streamId,{method:'POST'});
+  if(pc){ pc.close(); pc=null; }
+  localVideo.srcObject = null;
+  setStatus("Stream ended and cleared – Stream ID no longer valid");
+  setTimeout(()=>location.reload(), 1000);
+};
+
+document.getElementById("copyBtn").onclick=()=>{
+  navigator.clipboard.writeText(streamId).then(()=>{
+    setStatus("Stream ID copied ✔");
+  });
+};
+
+document.getElementById("copyLinkBtn").onclick = () => {
+  const basePath = location.pathname.substring(0, location.pathname.lastIndexOf("/"));
+  const link = `${location.origin}${basePath}/receiver.html?id=${streamId}`;
+  navigator.clipboard.writeText(link).then(()=>{
+    setStatus("Receiver link copied ✔");
+  });
+};
+
+buildInitialUI();
+</script>
+</body>
+</html>
