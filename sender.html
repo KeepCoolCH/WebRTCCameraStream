@@ -3,27 +3,30 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=0.6" />
-<title>WebRTC Camera Stream - Sender</title>
+<title>WebRTC Stream - Sender</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<logoimg><a href="index.html"><img src="img/logo.png" alt="WebRTC Camera Stream" width="300"></a></logoimg>
+<logoimg><a href="index.html"><img src="img/logo.png" alt="WebRTC Stream" width="300"></a></logoimg>
 <div class="card">
-  <h1>WebRTC Camera Stream - Sender</h1>
+  <h1>WebRTC Stream - Sender</h1>
   <video id="local" autoplay playsinline muted></video>
   <div class="controls" id="cameraControls"></div>
   <div>
-    <button id="clearBtn">End WebRTC Camera Stream</button>
+    <button id="clearBtn">End WebRTC Stream</button>
   </div>
   <div style="margin-top:20px">
-    <label>Stream ID:</label>
-    <strong><span id="streamId"></span></strong>
-    <button id="copyBtn">Copy Stream ID</button>
-    <button id="copyLinkBtn">Copy Link with Stream ID</button>
+    <div class="stream-id-actions">
+      <label>Stream ID:</label>
+      <strong><span id="streamId"></span></strong>
+      <button id="newIdBtn" title="Generate new Stream ID" aria-label="Generate new Stream ID">↻</button>
+      <button id="copyBtn">Copy Stream ID</button>
+      <button id="copyLinkBtn">Copy Link with Stream ID</button>
+    </div>
     <div class="status">Status: <span id="statText">ready</span></div>
   </div>
 </div>
-<footer>WebRTC Camera Stream V.1.0 © 2025 by Kevin Tobler - 
+<footer>WebRTC Stream V.1.1 © 2026 by Kevin Tobler - 
 <a href="https://www.kevintobler.ch" target="_blank">www.kevintobler.ch</a></footer>
 <script>
 const SIGNAL_URL = 'signal.php';
@@ -36,21 +39,25 @@ function generateStreamId() {
   return String(Math.floor(Math.random() * 1e6)).padStart(6, "0");
 }
 const streamIdField = document.getElementById("streamId");
-const streamId = generateStreamId();
+let streamId = generateStreamId();
 streamIdField.textContent = streamId;
 
-let pc, localStream, videoSender, pollingInterval;
+let pc, localStream, videoSender, audioSender, pollingInterval;
 
 function setStatus(t){ statText.textContent=t; }
 
 async function setupStream(stream){
+  if(pc){ pc.close(); pc=null; }
   localStream = stream;
   localVideo.srcObject = stream;
+  videoSender = null;
+  audioSender = null;
 
   pc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
   stream.getTracks().forEach(track=>{
     const sender=pc.addTrack(track,stream);
     if(track.kind==="video") videoSender=sender;
+    if(track.kind==="audio") audioSender=sender;
   });
 
   pc.onicecandidate = e => {
@@ -111,37 +118,118 @@ async function startWithDevice(deviceId){
   buildDeviceSwitchUI();
 }
 
+async function startScreenShare(){
+  if(!navigator.mediaDevices.getDisplayMedia){
+    setStatus("Screen sharing is not supported in this browser");
+    return;
+  }
+  try{
+    const stream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});
+    stream.getVideoTracks().forEach(track=>{
+      track.onended=()=>setStatus("Screen sharing stopped");
+    });
+    await setupStream(stream);
+    buildScreenShareUI();
+    setStatus("Screen sharing started");
+  }catch(e){
+    setStatus("Screen sharing cancelled or blocked");
+  }
+}
+
 async function switchCameraFacing(mode){
   if(!videoSender)return;
-  const newStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:mode},audio:false});
+  const newStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:mode},audio:true});
   const newTrack=newStream.getVideoTracks()[0];
   await videoSender.replaceTrack(newTrack);
-  localStream.getVideoTracks().forEach(t=>t.stop());
-  localStream.removeTrack(localStream.getVideoTracks()[0]);
+  localStream.getVideoTracks().forEach(t=>{
+    t.stop();
+    localStream.removeTrack(t);
+  });
   localStream.addTrack(newTrack);
+  const newAudioTrack=newStream.getAudioTracks()[0];
+  if(newAudioTrack && audioSender){
+    localStream.getAudioTracks().forEach(t=>{
+      t.stop();
+      localStream.removeTrack(t);
+    });
+    await audioSender.replaceTrack(newAudioTrack);
+    localStream.addTrack(newAudioTrack);
+  }
   localVideo.srcObject=localStream;
+  buildSwitchUI();
   setStatus("Switched camera: "+mode);
 }
 
 async function switchCameraDevice(deviceId){
   if(!videoSender)return;
-  const newStream=await navigator.mediaDevices.getUserMedia({video:{deviceId:{exact:deviceId}},audio:false});
+  const videoConstraints = deviceId ? {deviceId:{exact:deviceId}} : true;
+  const newStream=await navigator.mediaDevices.getUserMedia({video:videoConstraints,audio:true});
   const newTrack=newStream.getVideoTracks()[0];
   await videoSender.replaceTrack(newTrack);
-  localStream.getVideoTracks().forEach(t=>t.stop());
-  localStream.removeTrack(localStream.getVideoTracks()[0]);
+  localStream.getVideoTracks().forEach(t=>{
+    t.stop();
+    localStream.removeTrack(t);
+  });
   localStream.addTrack(newTrack);
+  const newAudioTrack=newStream.getAudioTracks()[0];
+  if(newAudioTrack && audioSender){
+    localStream.getAudioTracks().forEach(t=>{
+      t.stop();
+      localStream.removeTrack(t);
+    });
+    await audioSender.replaceTrack(newAudioTrack);
+    localStream.addTrack(newAudioTrack);
+  }
   localVideo.srcObject=localStream;
+  buildDeviceSwitchUI();
   setStatus("Switched camera");
+}
+
+async function switchToScreenShare(){
+  if(!videoSender)return;
+  if(!navigator.mediaDevices.getDisplayMedia){
+    setStatus("Screen sharing is not supported in this browser");
+    return;
+  }
+  try{
+    const screenStream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});
+    const screenVideoTrack=screenStream.getVideoTracks()[0];
+    await videoSender.replaceTrack(screenVideoTrack);
+    localStream.getVideoTracks().forEach(t=>{
+      t.stop();
+      localStream.removeTrack(t);
+    });
+    localStream.addTrack(screenVideoTrack);
+
+    const screenAudioTrack=screenStream.getAudioTracks()[0];
+    if(screenAudioTrack && audioSender){
+      localStream.getAudioTracks().forEach(t=>{
+        t.stop();
+        localStream.removeTrack(t);
+      });
+      await audioSender.replaceTrack(screenAudioTrack);
+      localStream.addTrack(screenAudioTrack);
+    }
+
+    screenVideoTrack.onended=()=>setStatus("Screen sharing stopped");
+    localVideo.srcObject=localStream;
+    buildScreenShareUI();
+    setStatus("Switched to screen sharing");
+  }catch(e){
+    setStatus("Screen sharing cancelled or blocked");
+  }
 }
 
 function buildInitialUI(){
   controls.innerHTML='';
   navigator.mediaDevices.enumerateDevices().then(devs=>{
     const cams=devs.filter(d=>d.kind==="videoinput");
+    const screen=document.createElement("button");
+    screen.textContent="Share screen";
+    screen.onclick=()=>startScreenShare();
     if(/iPhone|iPad|iPod/.test(navigator.userAgent)){
       const start=document.createElement("button");
-      start.textContent="Start WebRTC Camera Stream";
+      start.textContent="Share camera";
       start.onclick=()=>startWithFacing("user"); // Default: front
       controls.appendChild(start);
 
@@ -153,11 +241,19 @@ function buildInitialUI(){
       b.onclick=()=>startWithFacing("environment");
       controls.appendChild(f); 
       controls.appendChild(b);
+      controls.appendChild(screen);
     }else{
-      const sel=document.createElement("select");
-      cams.forEach((c,i)=>{ const o=document.createElement("option"); o.value=c.deviceId; o.text=c.label||("Camera "+(i+1)); sel.appendChild(o); });
-      const btn=document.createElement("button"); btn.textContent="Start WebRTC Camera Stream"; btn.onclick=()=>startWithDevice(sel.value);
-      controls.appendChild(btn); controls.appendChild(sel);
+      const btn=document.createElement("button");
+      btn.textContent="Share camera";
+      btn.onclick=()=>{
+        const cam=cams[0];
+        if(cam){
+          startWithDevice(cam.deviceId);
+        }else{
+          setStatus("No camera found");
+        }
+      };
+      controls.appendChild(btn); controls.appendChild(screen);
     }
   });
 }
@@ -166,7 +262,8 @@ function buildSwitchUI(){
   controls.innerHTML='';
   const f=document.createElement("button"); f.textContent="Front camera"; f.onclick=()=>switchCameraFacing("user");
   const b=document.createElement("button"); b.textContent="Back camera"; b.onclick=()=>switchCameraFacing("environment");
-  controls.appendChild(f); controls.appendChild(b);
+  const screen=document.createElement("button"); screen.textContent="Switch to screen"; screen.onclick=()=>switchToScreenShare();
+  controls.appendChild(f); controls.appendChild(b); controls.appendChild(screen);
 }
 
 function buildDeviceSwitchUI(){
@@ -174,18 +271,66 @@ function buildDeviceSwitchUI(){
   navigator.mediaDevices.enumerateDevices().then(devs=>{
     const cams=devs.filter(d=>d.kind==="videoinput");
     const sel=document.createElement("select");
-    cams.forEach((c,i)=>{ const o=document.createElement("option"); o.value=c.deviceId; o.text=c.label||("Camera "+(i+1)); sel.appendChild(o); });
+    cams.forEach((c,i)=>{ const o=document.createElement("option"); o.value=c.deviceId; o.text=c.label||("Start camera stream to choose camera"); sel.appendChild(o); });
     sel.onchange=()=>switchCameraDevice(sel.value);
-    controls.appendChild(sel);
+    const screen=document.createElement("button"); screen.textContent="Switch to screen"; screen.onclick=()=>switchToScreenShare();
+    controls.appendChild(sel); controls.appendChild(screen);
   });
+}
+
+function buildScreenShareUI(){
+  controls.innerHTML='';
+  const screen=document.createElement("button");
+  screen.textContent="Switch to screen";
+  screen.onclick=()=>switchToScreenShare();
+
+  if(/iPhone|iPad|iPod/.test(navigator.userAgent)){
+    const f=document.createElement("button");
+    f.textContent="Front camera";
+    f.onclick=()=>switchCameraFacing("user");
+    const b=document.createElement("button");
+    b.textContent="Back camera";
+    b.onclick=()=>switchCameraFacing("environment");
+    controls.appendChild(f);
+    controls.appendChild(b);
+    controls.appendChild(screen);
+  }else{
+    navigator.mediaDevices.enumerateDevices().then(devs=>{
+      const cams=devs.filter(d=>d.kind==="videoinput");
+      const sel=document.createElement("select");
+      cams.forEach((c,i)=>{
+        const o=document.createElement("option");
+        o.value=c.deviceId;
+        o.text=c.label||("Start camera stream to choose camera");
+        sel.appendChild(o);
+      });
+      const camera=document.createElement("button");
+      camera.textContent="Switch to camera";
+      camera.onclick=()=>{
+        if(sel.value){
+          switchCameraDevice(sel.value);
+        }else{
+          switchCameraDevice();
+        }
+      };
+      controls.appendChild(sel);
+      controls.appendChild(camera);
+      controls.appendChild(screen);
+    });
+  }
 }
 
 document.getElementById("clearBtn").onclick=()=>{
   fetch(SIGNAL_URL+'?action=clear&id='+streamId,{method:'POST'});
+  if(pollingInterval){ clearInterval(pollingInterval); pollingInterval=null; }
   if(pc){ pc.close(); pc=null; }
+  if(localStream){ localStream.getTracks().forEach(t=>t.stop()); }
+  localStream = null;
+  videoSender = null;
+  audioSender = null;
   localVideo.srcObject = null;
-  setStatus("Stream ended and cleared – Stream ID no longer valid");
-  setTimeout(()=>location.reload(), 1000);
+  buildInitialUI();
+  setStatus("Stream ended – Stream ID is still valid");
 };
 
 document.getElementById("copyBtn").onclick=()=>{
@@ -200,6 +345,23 @@ document.getElementById("copyLinkBtn").onclick = () => {
   navigator.clipboard.writeText(link).then(()=>{
     setStatus("Receiver link copied ✔");
   });
+};
+
+document.getElementById("newIdBtn").onclick=()=>{
+  if(pc || localStream){
+    fetch(SIGNAL_URL+'?action=clear&id='+streamId,{method:'POST'});
+  }
+  if(pollingInterval){ clearInterval(pollingInterval); pollingInterval=null; }
+  if(pc){ pc.close(); pc=null; }
+  if(localStream){ localStream.getTracks().forEach(t=>t.stop()); }
+  localStream = null;
+  videoSender = null;
+  audioSender = null;
+  localVideo.srcObject = null;
+  streamId = generateStreamId();
+  streamIdField.textContent = streamId;
+  buildInitialUI();
+  setStatus("New Stream ID generated");
 };
 
 buildInitialUI();
