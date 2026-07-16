@@ -105,6 +105,160 @@ a:hover {
     font-size:18px;
 }
 
+.stream-id-actions {
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+}
+
+#connectBtn {
+    padding:10px 10px;
+    border-radius:8px;
+    border:none;
+    background:#2196f3;
+    color: white;
+    cursor:pointer; 
+    transition: background-color 0.3s ease;
+    font-size:18px;
+    margin-top: 12px;
+}
+
+#connectBtn:hover {
+    background-color:#1976d2;
+}
+
+#endBtn {
+    padding:10px 10px;
+    border-radius:8px;
+    border:none;
+    background:#c00;
+    color: white;
+    cursor:pointer; 
+    transition: background-color 0.3s ease;
+    font-size:18px;
+    margin-top: 12px;
+}
+
+#endBtn:hover {
+    background-color:#a00;
+}
+
+#clearBtn {
+    padding:10px 10px;
+    border-radius:8px;
+    border:none;
+    background:#c00;
+    color: white;
+    cursor:pointer; 
+    transition: background-color 0.3s ease;
+    font-size:18px;
+    margin-top: 12px;
+}
+
+#clearBtn:hover {
+    background-color:#a00;
+}
+
+#cameraControls button {
+    padding:10px 10px;
+    border-radius:8px;
+    border:none;
+    background:#2196f3;
+    color: white;
+    cursor:pointer; 
+    transition: background-color 0.3s ease;
+    font-size:18px;
+}
+
+#cameraControls button:hover {
+    background-color:#1976d2;
+}
+
+#copyBtn {
+    padding:10px 10px;
+    border-radius:8px;
+    border:none;
+    background:#2196f3;
+    color: white;
+    cursor:pointer; 
+    transition: background-color 0.3s ease;
+    font-size:18px;
+}
+
+#copyBtn:hover {
+    background-color:#1976d2;
+}
+
+#copyLinkBtn{
+    padding:10px 10px;
+    border-radius:8px;
+    border:none;
+    background:#2196f3;
+    color: white;
+    cursor:pointer; 
+    transition: background-color 0.3s ease;
+    font-size:18px;
+}
+
+#copyLinkBtn:hover {
+    background-color:#1976d2;
+}
+
+#newIdBtn{
+    width:42px;
+    height:42px;
+    padding:0;
+    border-radius:8px;
+    border:none;
+    background:#2196f3;
+    color: white;
+    cursor:pointer; 
+    transition: background-color 0.3s ease;
+    font-size:22px;
+    line-height:42px;
+}
+
+#newIdBtn:hover {
+    background-color:#1976d2;
+}
+
+#menuBtn {
+    padding:10px 10px;
+    border-radius:8px;
+    border:none;
+    background:#2196f3;
+    color: white;
+    cursor:pointer; 
+    transition: background-color 0.3s ease;
+    font-size:18px;
+}
+
+#menuBtn:hover {
+    background-color:#1976d2;
+}
+    font-size:16px;
+}
+
+a:hover {
+    text-decoration:none;
+    color:#1976d2;
+    font-size:16px;
+}
+
+.controls{ 
+    margin-top:12px; 
+    display:flex; 
+    gap:8px; 
+    flex-wrap:wrap; 
+}
+
+.status{ 
+    margin-top:20px; 
+    color:grey;
+    font-size:18px;
+}
+
 #connectBtn {
     padding:10px 10px;
     border-radius:8px;
