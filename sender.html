@@ -11,6 +11,15 @@
 <div class="card">
   <h1>WebRTC Stream - Sender</h1>
   <video id="local" autoplay playsinline muted></video>
+  <div class="quality-controls">
+    <label for="qualitySelect">Video quality:</label>
+    <select id="qualitySelect">
+      <option value="360">360p · 800 kbit/s</option>
+      <option value="720" selected>720p · 2.5 Mbit/s</option>
+      <option value="1080">1080p · 5 Mbit/s</option>
+      <option value="auto">Auto</option>
+    </select>
+  </div>
   <div class="controls" id="cameraControls"></div>
   <div>
     <button id="clearBtn">End WebRTC Stream</button>
@@ -33,6 +42,7 @@ const SIGNAL_URL = 'signal.php';
 const localVideo = document.getElementById("local");
 const controls = document.getElementById("cameraControls");
 const statText = document.getElementById("statText");
+const qualitySelect = document.getElementById("qualitySelect");
 
 // Generate random stream ID
 function generateStreamId() {
@@ -45,6 +55,58 @@ streamIdField.textContent = streamId;
 let pc, localStream, videoSender, audioSender, pollingInterval;
 
 function setStatus(t){ statText.textContent=t; }
+
+function getSelectedQuality(){
+  const qualities = {
+    "360": {height:360, width:640, bitrate:800000, label:"360p"},
+    "720": {height:720, width:1280, bitrate:2500000, label:"720p"},
+    "1080": {height:1080, width:1920, bitrate:5000000, label:"1080p"}
+  };
+  return qualities[qualitySelect.value] || null;
+}
+
+function getVideoConstraints(base={}){
+  const quality = getSelectedQuality();
+  if(!quality) return base === true ? true : base;
+  return {
+    ...(base === true ? {} : base),
+    width:{ideal:quality.width},
+    height:{ideal:quality.height}
+  };
+}
+
+async function applyVideoQuality(){
+  if(!videoSender || !videoSender.getParameters) return;
+  const quality = getSelectedQuality();
+  const params = videoSender.getParameters();
+  if(!params.encodings || !params.encodings.length) params.encodings = [{}];
+  if(quality){
+    params.encodings[0].maxBitrate = quality.bitrate;
+    params.encodings[0].scaleResolutionDownBy = 1;
+  }else{
+    delete params.encodings[0].maxBitrate;
+    delete params.encodings[0].scaleResolutionDownBy;
+  }
+  await videoSender.setParameters(params).catch(()=>{});
+}
+
+async function applyQualityToCurrentTrack(){
+  await applyVideoQuality();
+  const track = localStream && localStream.getVideoTracks()[0];
+  const quality = getSelectedQuality();
+  if(track && quality && track.applyConstraints){
+    await track.applyConstraints({
+      width:{ideal:quality.width},
+      height:{ideal:quality.height}
+    }).catch(()=>{});
+  }
+  if(track && !quality && track.applyConstraints){
+    await track.applyConstraints({}).catch(()=>{});
+  }
+  if(videoSender){
+    setStatus(quality ? "Video quality set to "+quality.label : "Video quality set to Auto");
+  }
+}
 
 async function setupStream(stream){
   if(pc){ pc.close(); pc=null; }
@@ -59,6 +121,7 @@ async function setupStream(stream){
     if(track.kind==="video") videoSender=sender;
     if(track.kind==="audio") audioSender=sender;
   });
+  await applyVideoQuality();
 
   pc.onicecandidate = e => {
     if(e.candidate){
@@ -107,13 +170,13 @@ async function setupStream(stream){
 }
 
 async function startWithFacing(mode){
-  const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:mode},audio:true});
+  const stream=await navigator.mediaDevices.getUserMedia({video:getVideoConstraints({facingMode:mode}),audio:true});
   await setupStream(stream);
   buildSwitchUI();
 }
 
 async function startWithDevice(deviceId){
-  const stream=await navigator.mediaDevices.getUserMedia({video:{deviceId:{exact:deviceId}},audio:true});
+  const stream=await navigator.mediaDevices.getUserMedia({video:getVideoConstraints({deviceId:{exact:deviceId}}),audio:true});
   await setupStream(stream);
   buildDeviceSwitchUI();
 }
@@ -124,7 +187,7 @@ async function startScreenShare(){
     return;
   }
   try{
-    const stream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});
+    const stream=await navigator.mediaDevices.getDisplayMedia({video:getVideoConstraints(true),audio:true});
     stream.getVideoTracks().forEach(track=>{
       track.onended=()=>setStatus("Screen sharing stopped");
     });
@@ -138,9 +201,10 @@ async function startScreenShare(){
 
 async function switchCameraFacing(mode){
   if(!videoSender)return;
-  const newStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:mode},audio:true});
+  const newStream=await navigator.mediaDevices.getUserMedia({video:getVideoConstraints({facingMode:mode}),audio:true});
   const newTrack=newStream.getVideoTracks()[0];
   await videoSender.replaceTrack(newTrack);
+  await applyVideoQuality();
   localStream.getVideoTracks().forEach(t=>{
     t.stop();
     localStream.removeTrack(t);
@@ -162,10 +226,11 @@ async function switchCameraFacing(mode){
 
 async function switchCameraDevice(deviceId){
   if(!videoSender)return;
-  const videoConstraints = deviceId ? {deviceId:{exact:deviceId}} : true;
+  const videoConstraints = deviceId ? getVideoConstraints({deviceId:{exact:deviceId}}) : getVideoConstraints(true);
   const newStream=await navigator.mediaDevices.getUserMedia({video:videoConstraints,audio:true});
   const newTrack=newStream.getVideoTracks()[0];
   await videoSender.replaceTrack(newTrack);
+  await applyVideoQuality();
   localStream.getVideoTracks().forEach(t=>{
     t.stop();
     localStream.removeTrack(t);
@@ -192,9 +257,10 @@ async function switchToScreenShare(){
     return;
   }
   try{
-    const screenStream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:true});
+    const screenStream=await navigator.mediaDevices.getDisplayMedia({video:getVideoConstraints(true),audio:true});
     const screenVideoTrack=screenStream.getVideoTracks()[0];
     await videoSender.replaceTrack(screenVideoTrack);
+    await applyVideoQuality();
     localStream.getVideoTracks().forEach(t=>{
       t.stop();
       localStream.removeTrack(t);
@@ -363,6 +429,8 @@ document.getElementById("newIdBtn").onclick=()=>{
   buildInitialUI();
   setStatus("New Stream ID generated");
 };
+
+qualitySelect.onchange=()=>applyQualityToCurrentTrack();
 
 buildInitialUI();
 </script>
